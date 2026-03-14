@@ -7,6 +7,7 @@ import { ROLE_MODULES } from "@/lib/auth/constants";
 import { Button } from "@/components/ui/button";
 import {
   LogOut,
+  LayoutDashboard,
   MessageCircle,
   CreditCard,
   AlertTriangle,
@@ -60,6 +61,7 @@ function LogoutButton() {
 }
 
 const ICONS = {
+  LayoutDashboard,
   Users,
   UsersRound,
   GraduationCap,
