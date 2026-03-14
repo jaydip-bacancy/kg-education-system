@@ -47,12 +47,13 @@ export async function POST(request) {
   const userId = signInData.user.id
   const { data: userRow } = await supabaseAdmin
     .from(TABLES.users)
-    .select("id, email, role")
+    .select("id, email, role, first_name, last_name, phone")
     .eq("id", userId)
     .maybeSingle()
 
   const role =
     userRow?.role || signInData.user.user_metadata?.role || "UNKNOWN"
+  const meta = signInData.user.user_metadata || {}
 
   if (role === "STAFF") {
     const { data: staffProfile } = await supabaseAdmin
@@ -80,6 +81,9 @@ export async function POST(request) {
       id: userId,
       email: signInData.user.email,
       role,
+      firstName: userRow?.first_name ?? meta.firstName ?? meta.first_name ?? null,
+      lastName: userRow?.last_name ?? meta.lastName ?? meta.last_name ?? null,
+      phone: userRow?.phone ?? meta.phone ?? null,
     },
     tokens: sessionToTokens(signInData.session),
   })

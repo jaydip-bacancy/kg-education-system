@@ -16,25 +16,32 @@ const CheckOutSchema = z.object({
   notes: z.string().optional(),
 });
 
-/** GET - Today's attendance for this classroom */
+/** GET - Attendance for this classroom */
 export async function GET(request, { params }) {
   const { id: classroomId } = await params;
   if (!classroomId) return errorResponse("INVALID_ID", "Classroom ID required", 400);
 
   const { searchParams } = new URL(request.url);
   const dateStr = searchParams.get("date");
+  const activeOnly = ["1", "true"].includes((searchParams.get("activeOnly") || "").toLowerCase());
   const date = dateStr ? new Date(dateStr) : new Date();
   const today = date.toISOString().slice(0, 10);
   const dayStart = `${today}T00:00:00.000Z`;
   const dayEnd = `${today}T23:59:59.999Z`;
 
-  const { data: attendance, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from(TABLES.attendance)
     .select("id, child_id, checked_in_at, checked_out_at, checked_in_by, checked_out_by, notes")
     .eq("classroom_id", classroomId)
-    .gte("checked_in_at", dayStart)
-    .lte("checked_in_at", dayEnd)
     .order("checked_in_at", { ascending: false });
+
+  if (activeOnly) {
+    query = query.is("checked_out_at", null);
+  } else {
+    query = query.gte("checked_in_at", dayStart).lte("checked_in_at", dayEnd);
+  }
+
+  const { data: attendance, error } = await query;
 
   if (error) {
     return NextResponse.json(
@@ -43,20 +50,22 @@ export async function GET(request, { params }) {
     );
   }
 
-  const childIds = [...new Set((attendance || []).map((a) => a.child_id))];
-  const { data: children } = await supabaseAdmin
-    .from(TABLES.children)
-    .select("id, first_name, last_name")
-    .in("id", childIds);
+  const childIds = [...new Set((attendance || []).map((record) => record.child_id).filter(Boolean))];
+  const { data: children } = childIds.length
+    ? await supabaseAdmin
+        .from(TABLES.children)
+        .select("id, first_name, last_name")
+        .in("id", childIds)
+    : { data: [] };
 
-  const childrenById = (children || []).reduce((acc, c) => {
-    acc[c.id] = c;
+  const childrenById = (children || []).reduce((acc, child) => {
+    acc[child.id] = child;
     return acc;
   }, {});
 
-  const result = (attendance || []).map((a) => ({
-    ...a,
-    child: childrenById[a.child_id],
+  const result = (attendance || []).map((record) => ({
+    ...record,
+    child: childrenById[record.child_id],
   }));
 
   return NextResponse.json(result);
@@ -175,7 +184,11 @@ export async function PATCH(request, { params }) {
   }
 
   if (existing.classroom_id !== classroomId) {
-    return errorResponse("CLASSROOM_MISMATCH", "Attendance record does not belong to this classroom", 400);
+    return errorResponse(
+      "CLASSROOM_MISMATCH",
+      "Attendance record does not belong to this classroom",
+      400
+    );
   }
 
   if (existing.checked_out_at) {

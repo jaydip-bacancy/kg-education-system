@@ -1,3 +1,5 @@
+import { DEFAULT_RATES, formatPrice } from "@/lib/pricing";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-[#f6f3ef] text-[#1e1b19]">
@@ -31,6 +33,9 @@ export default function Home() {
                 href="#stories"
               >
                 Stories
+              </a>
+              <a className="text-[#1e1b19]/70 hover:text-[#1e1b19]" href="#pricing">
+                Pricing
               </a>
               <a className="text-[#1e1b19]/70 hover:text-[#1e1b19]" href="#faq">
                 FAQ
@@ -220,10 +225,57 @@ Get Started
         </div>
       </section>
 
+      <section id="pricing" className="mx-auto w-full max-w-6xl px-6 py-16">
+        <div className="text-center">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4e3d]">
+            Per child
+          </div>
+          <h2 className="mt-3 text-3xl font-semibold text-[#1e1b19]">
+            Simple, transparent pricing
+          </h2>
+          <p className="mt-2 text-base text-[#3b3531]">
+            Choose how you pay. Pay upfront and save.
+          </p>
+        </div>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {[
+            { key: "MONTHLY", ...DEFAULT_RATES.MONTHLY },
+            { key: "QUARTERLY", ...DEFAULT_RATES.QUARTERLY },
+            { key: "ANNUAL", ...DEFAULT_RATES.ANNUAL },
+          ].map((plan) => (
+            <div
+              key={plan.key}
+              className="rounded-[var(--radius)] border border-[#1e1b19]/10 bg-white p-6 shadow-sm"
+            >
+              <div className="text-base font-semibold text-[#1e1b19]">
+                {plan.label}
+              </div>
+              <div className="mt-2 text-2xl font-bold text-[#1e1b19]">
+                {formatPrice(plan.amountCents)}
+              </div>
+              <div className="text-sm text-[#3b3531]">{plan.periodLabel}</div>
+              {plan.savings && (
+                <div className="mt-2 inline-block rounded-[var(--radius)] bg-[#e9f4ff] px-2 py-0.5 text-xs font-semibold text-[#2b5d8b]">
+                  Save {plan.savings}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section
         id="features"
         className="mx-auto w-full max-w-6xl px-6 pb-16"
       >
+        <div className="mb-10 text-center">
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6b4e3d]">
+            Features
+          </div>
+          <h2 className="mt-3 text-3xl font-semibold text-[#1e1b19]">
+            Everything you need to run your center
+          </h2>
+        </div>
         <div className="grid gap-6 md:grid-cols-3">
           {[
             {

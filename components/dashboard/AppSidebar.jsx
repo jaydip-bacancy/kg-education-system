@@ -71,12 +71,26 @@ const ICONS = {
   ClipboardList,
 };
 
-export function AppSidebar({ userRole, userEmail }) {
+function getInitials(firstName, lastName, email) {
+  if (firstName && lastName) {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  }
+  if (firstName) return firstName.slice(0, 2).toUpperCase();
+  if (email) return email.slice(0, 2).toUpperCase();
+  return "?";
+}
+
+export function AppSidebar({ userRole, userEmail, userFirstName, userLastName }) {
   const pathname = usePathname();
   const modules = ROLE_MODULES[userRole] || [];
+  const displayName =
+    [userFirstName, userLastName].filter(Boolean).join(" ").trim() ||
+    userEmail?.split("@")[0] ||
+    "Profile";
+  const initials = getInitials(userFirstName, userLastName, userEmail);
 
   return (
-    <aside className="relative z-10 flex h-full w-56 flex-col border-r border-border bg-card shadow-sm">
+    <aside className="relative z-10 flex h-full w-64 flex-col border-r border-border bg-card shadow-sm">
       <div className="flex h-14 items-center gap-2 border-b border-border px-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-semibold">
           bw
@@ -106,10 +120,20 @@ export function AppSidebar({ userRole, userEmail }) {
         })}
       </nav>
 
-      <div className="border-t border-border p-2">
-        <p className="truncate px-2 text-xs text-muted-foreground" title={userEmail}>
-          {userEmail}
-        </p>
+      <div className="border-t border-border p-3 space-y-2">
+        <Link href="/dashboard/profile" className="flex items-start gap-3 rounded-md px-2 py-2 hover:bg-muted/60 transition-colors">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+            <span className="truncate text-sm font-medium text-foreground">
+              {displayName}
+            </span>
+            <span className="truncate text-xs text-muted-foreground" title={userEmail}>
+              {userEmail}
+            </span>
+          </div>
+        </Link>
         <LogoutButton />
       </div>
     </aside>

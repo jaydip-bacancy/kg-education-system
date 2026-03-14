@@ -33,8 +33,7 @@ export async function GET(request, { params }) {
   if (!type || type === "children") {
     const { data: children } = await supabaseAdmin
       .from(TABLES.children)
-      .select("id, first_name, last_name, date_of_birth")
-      .eq("center_id", centerId);
+      .select("id, first_name, last_name, date_of_birth, center_id");
 
     result.children = children || [];
   }

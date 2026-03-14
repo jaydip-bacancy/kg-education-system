@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -25,7 +26,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ChevronDown, ChevronRight, UserPlus, Baby, GraduationCap } from "lucide-react";
+import { ChevronDown, ChevronRight, UserPlus, Baby, GraduationCap, Pencil, Trash2 } from "lucide-react";
+
+const STORAGE_KEY = "brightsteps_auth";
+
+function getStoredUser() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const { user } = JSON.parse(raw);
+    return user;
+  } catch {
+    return null;
+  }
+}
 
 const EMPTY_CHILD = {
   firstName: "",
@@ -62,6 +77,13 @@ export default function ParentsManagementPage() {
   const [selectedChildId, setSelectedChildId] = useState(null);
   const [childDetails, setChildDetails] = useState(null);
   const [childDetailsLoading, setChildDetailsLoading] = useState(false);
+  const [editFamily, setEditFamily] = useState(null);
+  const [editChildren, setEditChildren] = useState([]);
+  const [editErrors, setEditErrors] = useState({});
+  const [editLoading, setEditLoading] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [user, setUser] = useState(null);
 
   const updateAddField = (field, value) =>
     setAddForm((prev) => ({ ...prev, [field]: value }));
@@ -101,9 +123,162 @@ export default function ParentsManagementPage() {
   };
 
   useEffect(() => {
+    setUser(getStoredUser());
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
     fetchParents();
   }, [centerFilter]);
+
+  const canEditDelete = user && ["ADMIN", "STAFF"].includes(user.role);
+
+  const openEditDialog = (parent) => {
+    setEditFamily(parent);
+    setEditChildren(
+      (parent.children || []).map((c) => ({
+        id: c.id,
+        firstName: c.firstName || "",
+        lastName: c.lastName || "",
+        dateOfBirth: c.dateOfBirth || "",
+        relationship: c.relationship || "",
+        allergies: c.allergies || "",
+        medicalNotes: c.medicalNotes || "",
+        dietaryRestrictions: c.dietaryRestrictions || "",
+        emergencyContactName: c.emergencyContactName || "",
+        emergencyContactPhone: c.emergencyContactPhone || "",
+      }))
+    );
+    setEditErrors({});
+  };
+
+  const closeEditDialog = () => {
+    setEditFamily(null);
+    setEditChildren([]);
+    setEditErrors({});
+  };
+
+  const addEditChild = () =>
+    setEditChildren((prev) => [...prev, { ...EMPTY_CHILD }]);
+  const removeEditChild = (index) =>
+    setEditChildren((prev) => prev.filter((_, i) => i !== index));
+  const updateEditChild = (index, field, value) =>
+    setEditChildren((prev) =>
+      prev.map((child, i) =>
+        i === index ? { ...child, [field]: value } : child
+      )
+    );
+
+  const editChildErrors = useMemo(
+    () =>
+      editChildren.map((child) => ({
+        firstName: child.firstName?.trim() ? "" : "First name is required.",
+        lastName: child.lastName?.trim() ? "" : "Last name is required.",
+      })),
+    [editChildren]
+  );
+
+  const updateEditField = (field, value) =>
+    setEditFamily((prev) => (prev ? { ...prev, [field]: value } : null));
+
+  const validateEdit = () => {
+    const next = {};
+    if (!editFamily?.firstName?.trim()) next.firstName = "First name is required.";
+    if (!editFamily?.lastName?.trim()) next.lastName = "Last name is required.";
+    if (!editChildren.length) next.children = "Add at least one child.";
+    if (editChildErrors.some((e) => e.firstName || e.lastName))
+      next.children = "Fill in required child details.";
+    setEditErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editFamily || !validateEdit() || editLoading) return;
+    setEditLoading(true);
+    setEditErrors({});
+    try {
+      const csrfRes = await fetch("/api/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+      const token =
+        document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("csrfToken="))
+          ?.split("=")[1] || csrfToken || "";
+
+      const res = await fetch(`/api/parents/${editFamily.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-csrf-token": token,
+        },
+        body: JSON.stringify({
+          firstName: editFamily.firstName.trim(),
+          lastName: editFamily.lastName.trim(),
+          phone: editFamily.phone?.trim() || undefined,
+          communicationPrefs: editFamily.communicationPrefs || {},
+          children: editChildren.map((c) => ({
+            id: c.id || undefined,
+            firstName: c.firstName?.trim() || "",
+            lastName: c.lastName?.trim() || "",
+            dateOfBirth: c.dateOfBirth || undefined,
+            relationship: c.relationship?.trim() || undefined,
+            allergies: c.allergies?.trim() || undefined,
+            medicalNotes: c.medicalNotes?.trim() || undefined,
+            dietaryRestrictions: c.dietaryRestrictions?.trim() || undefined,
+            emergencyContactName: c.emergencyContactName?.trim() || undefined,
+            emergencyContactPhone: c.emergencyContactPhone?.trim() || undefined,
+          })),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEditErrors({
+          form: data?.error?.message || "Failed to update family.",
+        });
+        return;
+      }
+      closeEditDialog();
+      fetchParents();
+    } catch {
+      setEditErrors({ form: "Something went wrong." });
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirmId || deleteLoading) return;
+    setDeleteLoading(true);
+    try {
+      const csrfRes = await fetch("/api/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+      const token =
+        document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("csrfToken="))
+          ?.split("=")[1] || csrfToken || "";
+
+      const res = await fetch(`/api/parents/${deleteConfirmId}`, {
+        method: "DELETE",
+        headers: { "x-csrf-token": token },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error?.message || "Failed to delete family.");
+        return;
+      }
+      setDeleteConfirmId(null);
+      fetchParents();
+      if (expandedId === deleteConfirmId) setExpandedId(null);
+    } catch {
+      alert("Something went wrong.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/centers")
@@ -234,17 +409,19 @@ export default function ParentsManagementPage() {
             Manage parent accounts and their enrolled children.
           </p>
         </div>
-        <Button
-          type="button"
-          onClick={() => {
-            setShowAddForm((v) => !v);
-            if (showAddForm) resetAddForm();
-          }}
-          className="shrink-0"
-        >
-          <UserPlus className="mr-2 size-4" />
-          {showAddForm ? "Cancel" : "Add family"}
-        </Button>
+        {canEditDelete && (
+          <Button
+            type="button"
+            onClick={() => {
+              setShowAddForm((v) => !v);
+              if (showAddForm) resetAddForm();
+            }}
+            className="shrink-0"
+          >
+            <UserPlus className="mr-2 size-4" />
+            {showAddForm ? "Cancel" : "Add family"}
+          </Button>
+        )}
       </div>
 
       {showAddForm && (
@@ -409,12 +586,12 @@ export default function ParentsManagementPage() {
                         </div>
                         <div className="grid gap-2">
                           <Label>Date of birth</Label>
-                          <Input
-                            type="date"
+                          <DatePicker
                             value={child.dateOfBirth}
-                            onChange={(e) =>
-                              updateChild(index, "dateOfBirth", e.target.value)
+                            onChange={(value) =>
+                              updateChild(index, "dateOfBirth", value)
                             }
+                            buttonClassName="w-full justify-between"
                           />
                         </div>
                         <div className="grid gap-2">
@@ -537,31 +714,63 @@ export default function ParentsManagementPage() {
             const childCount = parent.children?.length ?? 0;
             return (
               <Card key={parent.id}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50"
-                  onClick={() =>
-                    setExpandedId((id) => (id === parent.id ? null : parent.id))
-                  }
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                <div className="flex w-full items-center gap-3 px-4 py-3">
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left hover:bg-muted/50"
+                    onClick={() =>
+                      setExpandedId((id) => (id === parent.id ? null : parent.id))
+                    }
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">
+                        {parent.firstName} {parent.lastName}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {parent.email}
+                        {parent.phone && ` • ${parent.phone}`}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                      {childCount} {childCount === 1 ? "child" : "children"}
+                    </span>
+                  </button>
+                  {canEditDelete && (
+                    <div className="flex shrink-0 gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditDialog(parent);
+                        }}
+                        aria-label="Edit family"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmId(parent.id);
+                        }}
+                        aria-label="Delete family"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   )}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">
-                      {parent.firstName} {parent.lastName}
-                    </p>
-                    <p className="truncate text-sm text-muted-foreground">
-                      {parent.email}
-                      {parent.phone && ` • ${parent.phone}`}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                    {childCount} {childCount === 1 ? "child" : "children"}
-                  </span>
-                </button>
+                </div>
                 {isExpanded && (
                   <CardContent className="border-t pt-4">
                     <div className="space-y-3">
@@ -602,6 +811,216 @@ export default function ParentsManagementPage() {
           })}
         </div>
       )}
+
+      <Dialog open={!!editFamily} onOpenChange={(open) => !open && closeEditDialog()}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit family</DialogTitle>
+          </DialogHeader>
+          {editFamily && (
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              {editErrors.form && (
+                <Alert variant="destructive">
+                  <AlertDescription>{editErrors.form}</AlertDescription>
+                </Alert>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>First name</Label>
+                  <Input
+                    value={editFamily.firstName || ""}
+                    onChange={(e) => updateEditField("firstName", e.target.value)}
+                    aria-invalid={Boolean(editErrors.firstName)}
+                  />
+                  {editErrors.firstName && (
+                    <p className="text-xs text-destructive">{editErrors.firstName}</p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label>Last name</Label>
+                  <Input
+                    value={editFamily.lastName || ""}
+                    onChange={(e) => updateEditField("lastName", e.target.value)}
+                    aria-invalid={Boolean(editErrors.lastName)}
+                  />
+                  {editErrors.lastName && (
+                    <p className="text-xs text-destructive">{editErrors.lastName}</p>
+                  )}
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Email (read-only)</Label>
+                <Input value={editFamily.email || ""} disabled className="bg-muted" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Phone (optional)</Label>
+                <Input
+                  type="tel"
+                  value={editFamily.phone || ""}
+                  onChange={(e) => updateEditField("phone", e.target.value)}
+                />
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <Label className="text-base">Children</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addEditChild}>
+                    Add child
+                  </Button>
+                </div>
+                {editErrors.children && (
+                  <p className="mb-2 text-xs text-destructive">{editErrors.children}</p>
+                )}
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {editChildren.map((child, index) => (
+                    <Card key={index} className="bg-muted/30">
+                      <CardHeader className="flex flex-row items-center justify-between py-3">
+                        <span className="text-sm font-medium">Child {index + 1}</span>
+                        {editChildren.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => removeEditChild(index)}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </CardHeader>
+                      <CardContent className="grid gap-3 py-0 md:grid-cols-2">
+                        <div className="grid gap-2">
+                          <Label>First name</Label>
+                          <Input
+                            value={child.firstName || ""}
+                            onChange={(e) =>
+                              updateEditChild(index, "firstName", e.target.value)
+                            }
+                            aria-invalid={Boolean(editChildErrors[index]?.firstName)}
+                          />
+                          {editChildErrors[index]?.firstName && (
+                            <p className="text-xs text-destructive">
+                              {editChildErrors[index].firstName}
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Last name</Label>
+                          <Input
+                            value={child.lastName || ""}
+                            onChange={(e) =>
+                              updateEditChild(index, "lastName", e.target.value)
+                            }
+                            aria-invalid={Boolean(editChildErrors[index]?.lastName)}
+                          />
+                          {editChildErrors[index]?.lastName && (
+                            <p className="text-xs text-destructive">
+                              {editChildErrors[index].lastName}
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Date of birth</Label>
+                          <DatePicker
+                            value={child.dateOfBirth || ""}
+                            onChange={(value) =>
+                              updateEditChild(index, "dateOfBirth", value)
+                            }
+                            buttonClassName="w-full justify-between"
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Relationship</Label>
+                          <Input
+                            value={child.relationship || ""}
+                            onChange={(e) =>
+                              updateEditChild(index, "relationship", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Allergies</Label>
+                          <Input
+                            value={child.allergies || ""}
+                            onChange={(e) =>
+                              updateEditChild(index, "allergies", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Medical notes</Label>
+                          <Textarea
+                            value={child.medicalNotes || ""}
+                            onChange={(e) =>
+                              updateEditChild(index, "medicalNotes", e.target.value)
+                            }
+                            rows={2}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Emergency contact name</Label>
+                          <Input
+                            value={child.emergencyContactName || ""}
+                            onChange={(e) =>
+                              updateEditChild(index, "emergencyContactName", e.target.value)
+                            }
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label>Emergency contact phone</Label>
+                          <Input
+                            type="tel"
+                            value={child.emergencyContactPhone || ""}
+                            onChange={(e) =>
+                              updateEditChild(index, "emergencyContactPhone", e.target.value)
+                            }
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button type="submit" disabled={editLoading}>
+                  {editLoading ? "Saving…" : "Save changes"}
+                </Button>
+                <Button type="button" variant="outline" onClick={closeEditDialog}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete family</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete this family? This will remove the parent
+            account, all children, and their records. This cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? "Deleting…" : "Delete family"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!selectedChildId}
@@ -690,3 +1109,5 @@ export default function ParentsManagementPage() {
     </div>
   );
 }
+
+

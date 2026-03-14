@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/supabaseAdmin"
 import { supabaseAnon } from "@/supabaseAnon"
 import { errorResponse, sessionToTokens, verifyCsrf } from "@/lib/auth/api"
 import { TABLES } from "@/lib/supabase/tables"
+import { DEFAULT_RATES } from "@/lib/pricing"
 
 const ChildSchema = z.object({
   firstName: z.string().min(1),
@@ -15,6 +16,7 @@ const ChildSchema = z.object({
   dietaryRestrictions: z.string().optional(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
+  billingCycle: z.enum(["MONTHLY", "QUARTERLY", "ANNUAL"]).optional(),
 })
 
 const RegisterParentSchema = z.object({
@@ -24,7 +26,7 @@ const RegisterParentSchema = z.object({
   password: z.string().min(8),
   phone: z.string().optional(),
   centerId: z.string().min(1),
-  communicationPrefs: z.record(z.any()).optional(),
+  communicationPrefs: z.record(z.string(), z.unknown()).optional(),
   children: z.array(ChildSchema).min(1),
 })
 
@@ -111,6 +113,7 @@ export async function POST(request) {
     allergies: child.allergies || null,
     medical_notes: child.medicalNotes || null,
     dietary_restrictions: child.dietaryRestrictions || null,
+    billing_cycle: child.billingCycle || "MONTHLY",
   }))
 
   const { data: childRows, error: childrenError } = await supabaseAdmin
@@ -146,6 +149,58 @@ export async function POST(request) {
     await supabaseAdmin
       .from(TABLES.emergencyContacts)
       .insert(emergencyContactsPayload)
+  }
+
+  // Generate initial invoice for each child
+  const today = new Date()
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i]
+    const childRow = childRows[i]
+    const billingCycle = child.billingCycle || "MONTHLY"
+    const rateConfig = DEFAULT_RATES[billingCycle] || DEFAULT_RATES.MONTHLY
+    const amountCents = rateConfig.amountCents
+
+    let periodStart, periodEnd, dueDate
+    if (billingCycle === "MONTHLY") {
+      periodStart = new Date(today.getFullYear(), today.getMonth(), 1)
+      periodEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+      dueDate = new Date(today.getFullYear(), today.getMonth(), 15)
+    } else if (billingCycle === "QUARTERLY") {
+      const q = Math.floor(today.getMonth() / 3) + 1
+      periodStart = new Date(today.getFullYear(), (q - 1) * 3, 1)
+      periodEnd = new Date(today.getFullYear(), q * 3, 0)
+      dueDate = new Date(periodStart)
+      dueDate.setDate(15)
+    } else {
+      periodStart = new Date(today.getFullYear(), 0, 1)
+      periodEnd = new Date(today.getFullYear(), 11, 31)
+      dueDate = new Date(today.getFullYear(), 0, 15)
+    }
+    if (dueDate < today) {
+      dueDate.setMonth(dueDate.getMonth() + (billingCycle === "MONTHLY" ? 1 : billingCycle === "QUARTERLY" ? 3 : 12))
+    }
+
+    const { data: centerRates } = await supabaseAdmin
+      .from(TABLES.centerRates)
+      .select("amount_cents")
+      .eq("center_id", centerId)
+      .eq("period", billingCycle)
+      .maybeSingle()
+
+    const finalAmountCents = centerRates?.amount_cents ?? amountCents
+
+    await supabaseAdmin.from(TABLES.invoices).insert({
+      center_id: centerId,
+      parent_profile_id: parentProfile.id,
+      child_id: childRow?.id ?? null,
+      amount_cents: finalAmountCents,
+      due_date: dueDate.toISOString().slice(0, 10),
+      status: "PENDING",
+      period_start: periodStart.toISOString().slice(0, 10),
+      period_end: periodEnd.toISOString().slice(0, 10),
+      billing_cycle: billingCycle,
+      notes: `${billingCycle} tuition — ${child.firstName} ${child.lastName}`,
+    })
   }
 
   const { data: signInData, error: signInError } =

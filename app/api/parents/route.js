@@ -23,7 +23,7 @@ const CreateParentSchema = z.object({
   password: z.string().min(8),
   phone: z.string().optional(),
   centerId: z.string().min(1),
-  communicationPrefs: z.record(z.any()).optional(),
+  communicationPrefs: z.record(z.string(), z.unknown()).optional(),
   children: z.array(ChildSchema).min(1),
 });
 
@@ -97,9 +97,24 @@ export async function GET(request) {
     return acc;
   }, {});
 
+  const childIds = (children || []).map((c) => c.id);
+  let contactsByChild = {};
+  if (childIds.length > 0) {
+    const { data: contacts } = await supabaseAdmin
+      .from(TABLES.emergencyContacts)
+      .select("child_id, name, phone")
+      .in("child_id", childIds)
+      .eq("is_primary", true);
+    (contacts || []).forEach((c) => {
+      if (!contactsByChild[c.child_id]) contactsByChild[c.child_id] = [];
+      contactsByChild[c.child_id].push(c);
+    });
+  }
+
   const childrenByParent = (children || []).reduce((acc, child) => {
     const pid = child.parent_profile_id;
     if (!acc[pid]) acc[pid] = [];
+    const primaryContact = contactsByChild[child.id]?.[0];
     acc[pid].push({
       id: child.id,
       firstName: child.first_name,
@@ -110,6 +125,8 @@ export async function GET(request) {
       medicalNotes: child.medical_notes,
       dietaryRestrictions: child.dietary_restrictions,
       centerId: child.center_id,
+      emergencyContactName: primaryContact?.name,
+      emergencyContactPhone: primaryContact?.phone,
     });
     return acc;
   }, {});

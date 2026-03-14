@@ -38,6 +38,7 @@ const TABLES = {
   activityLogs: "activity_logs",
   invoices: "invoices",
   payments: "payments",
+  centerRates: "center_rates",
   messageThreads: "message_threads",
   messages: "messages",
   messageThreadParticipants: "message_thread_participants",
@@ -88,6 +89,7 @@ async function cleanTables() {
     TABLES.adminProfiles,
     TABLES.parentProfiles,
     TABLES.users,
+    TABLES.centerRates,
     TABLES.centers,
   ];
   for (const table of deleteOrder) {
@@ -140,6 +142,16 @@ async function seed() {
   if (centerErr) throw new Error(`Centers: ${centerErr.message}`);
   const [center1, center2, center3] = centers;
   console.log(`Created ${centers.length} centers`);
+
+  // Center rates (per child: monthly $400, quarterly $1,140, annual $4,320)
+  for (const c of centers) {
+    await supabase.from(TABLES.centerRates).insert([
+      { center_id: c.id, period: "MONTHLY", amount_cents: 40000 },
+      { center_id: c.id, period: "QUARTERLY", amount_cents: 114000 },
+      { center_id: c.id, period: "ANNUAL", amount_cents: 432000 },
+    ]);
+  }
+  console.log("Created center rates");
 
   // 2. Admin
   const adminEmail = `sarah.mitchell@${DOMAIN}`;
@@ -224,6 +236,7 @@ async function seed() {
       .insert({ user_id: userId, communication_prefs: { emailUpdates: true, smsAlerts: true } })
       .select("id")
       .single();
+    const billingCycle = ["MONTHLY", "QUARTERLY", "ANNUAL"][parentData.indexOf(p) % 3];
     const { data: child } = await supabase
       .from(TABLES.children)
       .insert({
@@ -235,6 +248,7 @@ async function seed() {
         relationship: "Parent",
         allergies: p.child.allergies,
         medical_notes: p.child.allergies !== "None" ? `Allergy: ${p.child.allergies}` : null,
+        billing_cycle: billingCycle,
       })
       .select("id, first_name")
       .single();

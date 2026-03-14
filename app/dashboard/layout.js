@@ -54,7 +54,12 @@ export default function DashboardLayout({ children }) {
         <div className="absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-[#c6e7ff]/40 blur-3xl" />
         <div className="absolute top-20 right-1/4 h-40 w-40 rounded-full bg-[#ffe9f0]/40 blur-3xl" />
       </div>
-      <AppSidebar userRole={user.role} userEmail={user.email} />
+      <AppSidebar
+        userRole={user.role}
+        userEmail={user.email}
+        userFirstName={user.firstName}
+        userLastName={user.lastName}
+      />
       <main className="relative z-10 flex-1 overflow-y-auto">
         <div className="container py-6">{children}</div>
       </main>

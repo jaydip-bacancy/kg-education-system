@@ -22,7 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DEFAULT_RATES, formatPrice } from "@/lib/pricing";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const STORAGE_KEY = "brightsteps_auth";
@@ -37,6 +39,7 @@ const EMPTY_CHILD = {
   dietaryRestrictions: "",
   emergencyContactName: "",
   emergencyContactPhone: "",
+  billingCycle: "MONTHLY",
 };
 
 export default function RegisterPage() {
@@ -181,6 +184,7 @@ export default function RegisterPage() {
             dietaryRestrictions: c.dietaryRestrictions?.trim() || undefined,
             emergencyContactName: c.emergencyContactName?.trim() || undefined,
             emergencyContactPhone: c.emergencyContactPhone?.trim() || undefined,
+            billingCycle: c.billingCycle || "MONTHLY",
           })),
         });
       }
@@ -354,13 +358,29 @@ export default function RegisterPage() {
                       <CardContent className="grid gap-3 md:grid-cols-2">
                         <div className="grid gap-2"><Label>First name</Label><Input value={child.firstName} onChange={(e) => updateChild(index, "firstName", e.target.value)} className="h-10" aria-invalid={Boolean(childErrors[index]?.firstName)} required />{childErrors[index]?.firstName && <p className="text-xs text-destructive">{childErrors[index].firstName}</p>}</div>
                         <div className="grid gap-2"><Label>Last name</Label><Input value={child.lastName} onChange={(e) => updateChild(index, "lastName", e.target.value)} className="h-10" aria-invalid={Boolean(childErrors[index]?.lastName)} required />{childErrors[index]?.lastName && <p className="text-xs text-destructive">{childErrors[index].lastName}</p>}</div>
-                        <div className="grid gap-2"><Label>Date of birth</Label><Input type="date" value={child.dateOfBirth} onChange={(e) => updateChild(index, "dateOfBirth", e.target.value)} className="h-10" /></div>
+                        <div className="grid gap-2"><Label>Date of birth</Label><DatePicker value={child.dateOfBirth} onChange={(value) => updateChild(index, "dateOfBirth", value)} buttonClassName="h-10 w-full justify-between border-[#1e1b19]/15 bg-transparent" /></div>
                         <div className="grid gap-2"><Label>Relationship</Label><Input value={child.relationship} onChange={(e) => updateChild(index, "relationship", e.target.value)} className="h-10" /></div>
                         <div className="grid gap-2 md:col-span-2"><Label>Allergies</Label><Input value={child.allergies} onChange={(e) => updateChild(index, "allergies", e.target.value)} className="h-10" /></div>
                         <div className="grid gap-2 md:col-span-2"><Label>Medical notes</Label><Textarea value={child.medicalNotes} onChange={(e) => updateChild(index, "medicalNotes", e.target.value)} rows={3} className="border-[#1e1b19]/15" /></div>
                         <div className="grid gap-2 md:col-span-2"><Label>Dietary restrictions</Label><Input value={child.dietaryRestrictions} onChange={(e) => updateChild(index, "dietaryRestrictions", e.target.value)} className="h-10" /></div>
                         <div className="grid gap-2"><Label>Emergency contact name</Label><Input value={child.emergencyContactName} onChange={(e) => updateChild(index, "emergencyContactName", e.target.value)} className="h-10" /></div>
                         <div className="grid gap-2"><Label>Emergency contact phone</Label><Input type="tel" value={child.emergencyContactPhone} onChange={(e) => updateChild(index, "emergencyContactPhone", e.target.value)} className="h-10" /></div>
+                        <div className="grid gap-2 md:col-span-2">
+                          <Label>Billing cycle</Label>
+                          <Select
+                            value={child.billingCycle || "MONTHLY"}
+                            onValueChange={(v) => updateChild(index, "billingCycle", v)}
+                          >
+                            <SelectTrigger className="h-10 border-[#1e1b19]/15">
+                              <SelectValue placeholder="Select payment cycle" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="MONTHLY">{DEFAULT_RATES.MONTHLY.label} — {formatPrice(DEFAULT_RATES.MONTHLY.amountCents)}</SelectItem>
+                              <SelectItem value="QUARTERLY">{DEFAULT_RATES.QUARTERLY.label} — {formatPrice(DEFAULT_RATES.QUARTERLY.amountCents)} (save 5%)</SelectItem>
+                              <SelectItem value="ANNUAL">{DEFAULT_RATES.ANNUAL.label} — {formatPrice(DEFAULT_RATES.ANNUAL.amountCents)} (save 10%)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -397,3 +417,5 @@ export default function RegisterPage() {
     </div>
   );
 }
+
+

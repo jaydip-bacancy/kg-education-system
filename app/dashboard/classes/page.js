@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TimePicker } from "@/components/ui/time-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -475,20 +476,18 @@ export default function ClassesPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>Start time</Label>
-                    <Input
-                      type="time"
+                    <TimePicker
                       value={addForm.startTime}
-                      onChange={(e) => setAddForm((p) => ({ ...p, startTime: e.target.value }))}
-                      className="h-10 w-32"
+                      onChange={(value) => setAddForm((p) => ({ ...p, startTime: value }))}
+                      buttonClassName="h-10 w-32 justify-between"
                     />
                   </div>
                   <div className="grid gap-2">
                     <Label>End time</Label>
-                    <Input
-                      type="time"
+                    <TimePicker
                       value={addForm.endTime}
-                      onChange={(e) => setAddForm((p) => ({ ...p, endTime: e.target.value }))}
-                      className="h-10 w-32"
+                      onChange={(value) => setAddForm((p) => ({ ...p, endTime: value }))}
+                      buttonClassName="h-10 w-32 justify-between"
                     />
                   </div>
                   <div className="grid gap-2">
@@ -553,17 +552,15 @@ export default function ClassesPage() {
                             onChange={(e) => setEditForm((p) => ({ ...p, capacity: parseInt(e.target.value, 10) || 20 }))}
                             className="h-8 w-20"
                           />
-                          <Input
-                            type="time"
+                          <TimePicker
                             value={editForm.startTime}
-                            onChange={(e) => setEditForm((p) => ({ ...p, startTime: e.target.value }))}
-                            className="h-8 w-24"
+                            onChange={(value) => setEditForm((p) => ({ ...p, startTime: value }))}
+                            buttonClassName="h-8 w-24 justify-between"
                           />
-                          <Input
-                            type="time"
+                          <TimePicker
                             value={editForm.endTime}
-                            onChange={(e) => setEditForm((p) => ({ ...p, endTime: e.target.value }))}
-                            className="h-8 w-24"
+                            onChange={(value) => setEditForm((p) => ({ ...p, endTime: value }))}
+                            buttonClassName="h-8 w-24 justify-between"
                           />
                           <Button size="sm" onClick={() => handleUpdateClassroom(c.id)}>Save</Button>
                           <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
@@ -768,8 +765,8 @@ function AssignChildrenDialog({
       fetch(`/api/classrooms/${classroomId}/available?type=children`)
         .then((r) => r.json())
         .then((data) => setAvailable(data.children || []))
-        .catch(() => setAvailable([]));
-      setSelectedId("");
+        .catch(() => setAvailable([]))
+        .finally(() => setSelectedId(""));
     }
   }, [open, classroomId]);
 
@@ -779,7 +776,10 @@ function AssignChildrenDialog({
     await onAssign(classroomId, selectedId);
     setSelectedId("");
     setLoading(false);
-    setAvailable((prev) => prev.filter((ch) => ch.id !== selectedId));
+    fetch(`/api/classrooms/${classroomId}/available?type=children`)
+      .then((r) => r.json())
+      .then((data) => setAvailable(data.children || []))
+      .catch(() => {});
   };
 
   const handleClose = () => {
@@ -897,3 +897,7 @@ function CheckinView({ details, onCheckIn, onCheckOut, userId }) {
     </div>
   );
 }
+
+
+
+
