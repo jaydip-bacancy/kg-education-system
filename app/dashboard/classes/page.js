@@ -429,7 +429,7 @@ export default function ClassesPage() {
             <Card>
               <CardHeader><CardTitle>Add classroom</CardTitle></CardHeader>
               <CardContent>
-                <form onSubmit={handleAddClassroom} className="flex flex-wrap items-end gap-4">
+                <form onSubmit={handleAddClassroom} className="flex flex-wrap items-start gap-4">
                   {addErrors.form && (
                     <Alert variant="destructive" className="w-full">
                       <AlertDescription>{addErrors.form}</AlertDescription>
@@ -441,7 +441,7 @@ export default function ClassesPage() {
                       value={addForm.name}
                       onChange={(e) => setAddForm((p) => ({ ...p, name: e.target.value }))}
                       placeholder="e.g. Toddler Room A"
-                      className="w-48"
+                      className="h-10 w-48"
                       aria-invalid={Boolean(addErrors.name)}
                     />
                     {addErrors.name && <p className="text-xs text-destructive">{addErrors.name}</p>}
@@ -452,7 +452,7 @@ export default function ClassesPage() {
                       value={addForm.centerId}
                       onValueChange={(v) => setAddForm((p) => ({ ...p, centerId: v }))}
                     >
-                      <SelectTrigger className="w-48" aria-invalid={Boolean(addErrors.centerId)}>
+                      <SelectTrigger className="h-10 w-48" aria-invalid={Boolean(addErrors.centerId)}>
                         <SelectValue placeholder="Select center" />
                       </SelectTrigger>
                       <SelectContent>
@@ -470,7 +470,7 @@ export default function ClassesPage() {
                       min={1}
                       value={addForm.capacity}
                       onChange={(e) => setAddForm((p) => ({ ...p, capacity: parseInt(e.target.value, 10) || 20 }))}
-                      className="w-24"
+                      className="h-10 w-24"
                     />
                   </div>
                   <div className="grid gap-2">
@@ -479,7 +479,7 @@ export default function ClassesPage() {
                       type="time"
                       value={addForm.startTime}
                       onChange={(e) => setAddForm((p) => ({ ...p, startTime: e.target.value }))}
-                      className="w-32"
+                      className="h-10 w-32"
                     />
                   </div>
                   <div className="grid gap-2">
@@ -488,7 +488,7 @@ export default function ClassesPage() {
                       type="time"
                       value={addForm.endTime}
                       onChange={(e) => setAddForm((p) => ({ ...p, endTime: e.target.value }))}
-                      className="w-32"
+                      className="h-10 w-32"
                     />
                   </div>
                   <div className="grid gap-2">
